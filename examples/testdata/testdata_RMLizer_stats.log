@@ -1,0 +1,18 @@
+Total reads: 102327
+Reads after deduplication: 102327
+Reads passing indel filter: 98061
+Reads passing quality filters: 97603
+Reads uniquely mapped to features: 78828
+Skipped reads due to undetermined strandedness: 4
+Reads without mismatches: 63582
+Reads with mismatches: 15242
+Reads passing alignment identity filter: 15237
+Number of read pairs with overlap of at least 1 base: 35249
+Cumulative sum of overlapping bases: 3739548
+Min mapping quality (MAPQ):	254
+Max edit distance (NM):	20
+Min fraction of matching bases (XF):	90.00%
+Min mismatch call quality (QV):	27
+Min mismatch call quality TC (QVTC):	27
+Counting only unique reads:	YES
+Indel ban threshold:	ban
