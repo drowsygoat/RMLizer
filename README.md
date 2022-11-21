@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap:
----
-
          __             __   _
         /__\   /\/\    / /  (_) ____  ___  _ __
        / \//  /    \  / /   | ||_  / / _ \| '__|
@@ -53,10 +47,6 @@ Adding strand information to GTF file (works on GENCODE GTF format):
 Running rebound on a STAR-aligned BAM file, reverse strandedness, keep unique reads only, ignore reads with deletions \<= 30:
 
 `RMlizer.sh -a ./RMLizer.awk -r ./genome.fa -o ./output_dir -l star -g annotations.gtf -s reverse -u -f -i 30 my.bam`
-
-
-
-`kkk``kkk``kkk``kkk`
 
 
 **Output description**\
