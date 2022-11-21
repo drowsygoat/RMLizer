@@ -1356,7 +1356,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
     md_value = gensub(/MD:Z:/, "", "g", tag_finder("MD:Z:"))
 
-    # clean Counter
+    # clean counter
 
     gene_cnt_clean[gene_id, strand3, is_dup_curr]++
 
@@ -1388,7 +1388,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
             if (pair == "FALSE"){ # for the first read in BAM pair == TRUE
 
-                print $chr_previous, fr_start_previous-1, fr_end_previous-1, gene_id_previous, ".", strand3_previous, rn_prev, is_dup_prev, min($4,$8)-1, min($4,$8)+abs($9)-1, cnt_all["AA"]+cnt_previous["AA"]+0, cnt_all["AC"]+cnt_previous["AC"]+0, cnt_all["AG"]+cnt_previous["AG"]+0, cnt_all["AT"]+cnt_previous["AT"]+0, cnt_all["CA"]+cnt_previous["CA"]+0, cnt_all["CC"]+cnt_previous["CC"]+0, cnt_all["CG"]+cnt_previous["CG"]+0, cnt_all["CT"]+cnt_previous["CT"]+0, cnt_all["GA"]+cnt_previous["GA"]+0, cnt_all["GC"]+cnt_previous["GC"]+0, cnt_all["GG"]+cnt_previous["GG"]+0, cnt_all["GT"]+cnt_previous["GT"]+0, cnt_all["TA"]+cnt_previous["TA"]+0, cnt_all["TC"]+cnt_previous["TC"]+0, cnt_all["TG"]+cnt_previous["TG"]+0, cnt_all["TT"]+cnt_previous["TT"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
+                print chr_previous, fr_start_previous-1, fr_end_previous-1, gene_id_previous, ".", strand3_previous, rn_prev, is_dup_prev, min($4,$8)-1, min($4,$8)+abs($9)-1, cnt_all["AA"]+cnt_previous["AA"]+0, cnt_all["AC"]+cnt_previous["AC"]+0, cnt_all["AG"]+cnt_previous["AG"]+0, cnt_all["AT"]+cnt_previous["AT"]+0, cnt_all["CA"]+cnt_previous["CA"]+0, cnt_all["CC"]+cnt_previous["CC"]+0, cnt_all["CG"]+cnt_previous["CG"]+0, cnt_all["CT"]+cnt_previous["CT"]+0, cnt_all["GA"]+cnt_previous["GA"]+0, cnt_all["GC"]+cnt_previous["GC"]+0, cnt_all["GG"]+cnt_previous["GG"]+0, cnt_all["GT"]+cnt_previous["GT"]+0, cnt_all["TA"]+cnt_previous["TA"]+0, cnt_all["TC"]+cnt_previous["TC"]+0, cnt_all["TG"]+cnt_previous["TG"]+0, cnt_all["TT"]+cnt_previous["TT"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
 
                 print gene_id_previous,rn_prev,cnt_previous["AA"]+0, cnt_previous["AC"]+0, cnt_previous["AG"]+0, cnt_previous["AT"]+0, cnt_previous["CA"]+0, cnt_previous["CC"]+0, cnt_previous["CG"]+0, cnt_previous["CT"]+0, cnt_previous["GA"]+0, cnt_previous["GC"]+0, cnt_previous["GG"]+0, cnt_previous["GT"]+0, cnt_previous["TA"]+0, cnt_previous["TC"]+0, cnt_previous["TG"]+0, cnt_previous["TT"]+0, "a", is_dup_prev > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer_counts.txt"
             }
@@ -1431,7 +1431,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
         }
         stats["reads_with_mismatches_passing_identity_filter"]++
 
-        print $0,"TC:i:"cnt_all["TC"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.sam" # add data to sam file
+        print $0,"TC:i:"cnt_all["TC"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.sam" # this adds data to sam file
 
         if ($7 == "*"){
 
@@ -1441,7 +1441,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
             if (pair == "FALSE"){
 
-                print $chr_previous, fr_start_previous-1, fr_end_previous-1, gene_id_previous, ".", strand3_previous, rn_prev, is_dup_prev, min($4,$8)-1, min($4,$8)+abs($9)-1, cnt_all["AA"]+cnt_previous["AA"]+0, cnt_all["AC"]+cnt_previous["AC"]+0, cnt_all["AG"]+cnt_previous["AG"]+0, cnt_all["AT"]+cnt_previous["AT"]+0, cnt_all["CA"]+cnt_previous["CA"]+0, cnt_all["CC"]+cnt_previous["CC"]+0, cnt_all["CG"]+cnt_previous["CG"]+0, cnt_all["CT"]+cnt_previous["CT"]+0, cnt_all["GA"]+cnt_previous["GA"]+0, cnt_all["GC"]+cnt_previous["GC"]+0, cnt_all["GG"]+cnt_previous["GG"]+0, cnt_all["GT"]+cnt_previous["GT"]+0, cnt_all["TA"]+cnt_previous["TA"]+0, cnt_all["TC"]+cnt_previous["TC"]+0, cnt_all["TG"]+cnt_previous["TG"]+0, cnt_all["TT"]+cnt_previous["TT"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
+                print chr_previous, fr_start_previous-1, fr_end_previous-1, gene_id_previous, ".", strand3_previous, rn_prev, is_dup_prev, min($4,$8)-1, min($4,$8)+abs($9)-1, cnt_all["AA"]+cnt_previous["AA"]+0, cnt_all["AC"]+cnt_previous["AC"]+0, cnt_all["AG"]+cnt_previous["AG"]+0, cnt_all["AT"]+cnt_previous["AT"]+0, cnt_all["CA"]+cnt_previous["CA"]+0, cnt_all["CC"]+cnt_previous["CC"]+0, cnt_all["CG"]+cnt_previous["CG"]+0, cnt_all["CT"]+cnt_previous["CT"]+0, cnt_all["GA"]+cnt_previous["GA"]+0, cnt_all["GC"]+cnt_previous["GC"]+0, cnt_all["GG"]+cnt_previous["GG"]+0, cnt_all["GT"]+cnt_previous["GT"]+0, cnt_all["TA"]+cnt_previous["TA"]+0, cnt_all["TC"]+cnt_previous["TC"]+0, cnt_all["TG"]+cnt_previous["TG"]+0, cnt_all["TT"]+cnt_previous["TT"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
 
                 print gene_id_previous, rn_prev, cnt_previous["AA"]+0, cnt_previous["AC"]+0, cnt_previous["AG"]+0, cnt_previous["AT"]+0, cnt_previous["CA"]+0, cnt_previous["CC"]+0, cnt_previous["CG"]+0, cnt_previous["CT"]+0, cnt_previous["GA"]+0, cnt_previous["GC"]+0, cnt_previous["GG"]+0, cnt_previous["GT"]+0, cnt_previous["TA"]+0, cnt_previous["TC"]+0, cnt_previous["TG"]+0, cnt_previous["TT"]+0, "a", is_dup_prev > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer_counts.txt"
             }
