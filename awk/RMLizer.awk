@@ -386,6 +386,7 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                             exit 1
                         }
                     }
+                    # include T counter for reads!
                 }else if (mmms[i] == "TG"){
                     cnt_all["TG"]++; cov_tot[$3, "T", "TG", gene_id, strand3, is_dup_curr]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
@@ -1268,11 +1269,6 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
     ############################## Save read name #########################################
 
-    rn_curr = $1
-    # split($1,a,":")
-    # rn_curr=a[5]":"a[6]":"a[7]
-    # delete a
-    # use to abbreviate rn; probably not practical
 
     if (and($2, 0x400)){ # skip duplicates
 
@@ -1297,7 +1293,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
     }
 
-    if ($6 ~ INDEL_BAN_ARG){
+    if ($6 ~ INDEL_BAN_VAL){
         next
     }
 
@@ -1360,6 +1356,12 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
     gene_cnt_clean[gene_id, strand3, is_dup_curr]++
 
+    rn_curr = $1
+    # split($1,a,":")
+    # rn_curr=a[5]":"a[6]":"a[7]
+    # delete a
+    # use to abbreviate rn; probably not practical
+
     if (md_value ~ /^[0-9]*(\^[ACTGN]+[0-9]+)*$/){
         stats["reads_without_mismatches"]++
         if ($6 ~ /^[^SDNI]+$/){ # CIGAR cases without I,N,D,S
@@ -1378,6 +1380,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
         }
         ############################################################################################
 
+        
         print $0, "TC:i:0" > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.sam" # add data to SAM file
 
         if ($7 == "*"){
