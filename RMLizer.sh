@@ -79,7 +79,10 @@ exit_err() {
 }
 [ $# -eq 0 ] && exit_err
 # Set some defaults
+
+# HTS_BAM="./testdata_hts_strand.bam"
 UNIQ_ARG=1
+INDEL_BAN_VAL="disabled"
 THR_ARG=1
 MD_ARG=0
 NODUPS_ARG=0
@@ -256,17 +259,18 @@ if ! [[ -z $INDEL_BAN_ARG ]] ; then
         echo "Indel threshold must be in range [1-30], \"disabled\" (default) or \"ban\"."
         exit_err
     else
-        INDEL_BAN_VAL=$INDEL_BAN_ARG # for later use
-        if [[ $INDEL_BAN_ARG =~ ban ]] ; then
-            INDEL_BAN_ARG="[DI]"
+        if [[ $INDEL_BAN_ARG =~ disabled ]] ; then
+            INDEL_BAN_VAL="disabled"
+        elif [[ $INDEL_BAN_ARG =~ ban ]] ; then
+            INDEL_BAN_VAL="[DI]"
         elif [[ $INDEL_BAN_ARG -lt 10 ]] ; then
-            INDEL_BAN_ARG=$(echo "[1-$INDEL_BAN_ARG][DI]")
+            INDEL_BAN_VAL=$(echo "[1-$INDEL_BAN_ARG][DI]")
         elif [[ $INDEL_BAN_ARG -lt 20 ]] ; then
-            INDEL_BAN_ARG=$(echo "[^1-9][1-9][DI]|^[1-9][DI]|[1][0-$((INDEL_BAN_ARG-10))][DI]")
+            INDEL_BAN_VAL=$(echo "[^1-9][1-9][DI]|^[1-9][DI]|[1][0-$((INDEL_BAN_ARG-10))][DI]")
         elif [[ $INDEL_BAN_ARG -lt 30 ]] ; then
-            INDEL_BAN_ARG=$(echo "[^1-9][1-9][DI]|^[1-9][DI]|[1-2][0-$((INDEL_BAN_ARG-20))][DI]")
+            INDEL_BAN_VAL=$(echo "[^1-9][1-9][DI]|^[1-9][DI]|[1-2][0-$((INDEL_BAN_ARG-20))][DI]")
         else
-            INDEL_BAN_ARG=$(echo "[^1-9][1-9][DI]|^[1-9][DI]|[1-2][0-9][DI]|30[DI]")
+            INDEL_BAN_VAL=$(echo "[^1-9][1-9][DI]|^[1-9][DI]|[1-2][0-9][DI]|30[DI]")
         fi
     fi
 fi
@@ -319,7 +323,7 @@ else
 fi
 
 if [[ $STRANDEDNESS_ARG =~ reverse|forward|unstranded ]] ; then # change if statement to case statement
-    echo "Strandedness is set to $STRANDEDNESS_ARG."
+    echo "Strandedness is set to $STRANDEDNESS_ARG"
     if [[ $STRANDEDNESS_ARG =~ forward ]] ; then
         STRANDEDNESS_ARG="yes"
     elif [[ $STRANDEDNESS_ARG =~ reverse ]] ; then
@@ -356,18 +360,15 @@ if ! [[ $MODE_ARG =~ ^.*htseq_only.*$ ]] ; then
 
     # printf " --------------------\n Read filter settings\n --------------------\n Min mapping quality (MAPQ): ${BOLD}${MAPQ_FILTER}${NORM}\n Max edit distance (NM): ${BOLD}${NM_FILTER}${NORM}\n Min fraction of matching bases (XF): ${BOLD}${MISMATCH_FILTER}${NORM}\n Min mismatch call quality (QV): ${BOLD}${MISMATCH_QUALITY}${NORM}\n Min mismatch call quality TC (QVTC): ${BOLD}${MISMATCH_QUALITY_TC}${NORM}\n Counting only unique reads: ${BOLD}${UNIQ_REP}${NORM}\n"
 
-    # echo $INDEL_BAN_VAL
-    if ! [[ -z $INDEL_BAN_ARG ]] ; then
-        if [[ $INDEL_BAN_VAL =~ disabled ]] ; then
-            printf " ----------------------------------\n"
-        elif [[ $INDEL_BAN_VAL =~ ban ]] ; then
-            printf " Ignoring reads with indels: YES\n ------------------------------------\n"
-        else
-            printf " Ignoring reads with ${INDEL_BAN_VAL} or fewer nucleotides.\n ------------------------------------\n"
-        fi
-    else
+    if [[ $INDEL_BAN_VAL =~ disabled ]] ; then
+        printf " Ignoring reads with indels: NO\n ------------------------------------\n"
         printf " ----------------------------------\n"
+    elif [[ $INDEL_BAN_ARG =~ ban ]] ; then
+        printf " Ignoring reads with indels: YES\n ------------------------------------\n"
+    else
+        printf " Ignoring reads with indels equal or shorter than: ${INDEL_BAN_ARG}\n ------------------------------------\n"
     fi
+
     XI_VALUE=$(echo ${MISMATCH_FILTER}*100|bc)
     REP1="Min mapping quality (MAPQ):\t${MAPQ_FILTER}"
     REP2="Max edit distance (NM):\t${NM_FILTER}"
@@ -375,7 +376,8 @@ if ! [[ $MODE_ARG =~ ^.*htseq_only.*$ ]] ; then
     REP4="Min mismatch call quality (QV):\t${MISMATCH_QUALITY}"
     REP5="Min mismatch call quality TC (QVTC):\t${MISMATCH_QUALITY_TC}"
     REP6="Counting only unique reads:\t${UNIQ_REP}"
-    REP7="Indel ban threshold:\t${INDEL_BAN_VAL}"
+    REP7="Indel ban threshold:\t${INDEL_BAN_ARG}"
+
 fi
 
 if ! [[ $THR_ARG =~ ^[0-9]+$ ]] ; then
@@ -453,7 +455,9 @@ do
 
     fi
 
-    if [[ $MODE_ARG == "normal" ]] ; then
+    HTS_BAM="${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam"
+
+    if [[ $MODE_ARG == "normal" ]] && [[ ! -f ${HTS_BAM} ]] ; then
 
         echo "--> Counting reads..."
 
@@ -466,7 +470,6 @@ do
 
             samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM $BAM 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_stderr.log
 
-        fi |\
 
         htseq-count -o ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam -p BAM -r name -a 0 -f sam -s $STRANDEDNESS_ARG --nonunique $([[ $UNIQ_ARG -eq 1 ]] && echo "none" || echo "all") -i gene_id - $GTF_ARG > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_htseq_counts.txt
 
@@ -478,11 +481,11 @@ do
 
     echo "--> Counting mismatches and making output files..."
     # header is fed here into gawk, but better save header separately, and add it later to the final output (script will likely be faster, as less conditions to check per each record)
-    TOTAL_READS=$(samtools view -h -c -@$((THR_ARG-1)) ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam)
+    TOTAL_READS=$(samtools view -h -c -@$((THR_ARG-1)) ${HTS_BAM})
 
-    samtools view -@$((THR_ARG-1)) -h ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam |\
+    samtools view -@$((THR_ARG-1)) -h ${HTS_BAM} |\
 
-    gawk -v NODUPS_ARG=$NODUPS_ARG -v TOTAL_READS=$TOTAL_READS -v MAPPER_ARG=$MAPPER_ARG -v MODE_ARG=$MODE_ARG -v MAPQ_FILTER=$MAPQ_FILTER -v NM_FILTER=$NM_FILTER -v MISMATCH_FILTER=$MISMATCH_FILTER -v MISMATCH_QUALITY_TC=$MISMATCH_QUALITY_TC -v MISMATCH_QUALITY=$MISMATCH_QUALITY -v INDEL_BAN_ARG=$INDEL_BAN_ARG -v RMLIZER_COMMAND="$RMLIZER_COMMAND" -v BAM_NAME=$BAM_NAME -v OUTDIR_ARG="$OUTDIR_ARG" -v STRANDEDNESS_ARG=$STRANDEDNESS_ARG -f $AWK_FILE 2> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
+    gawk -v NODUPS_ARG=$NODUPS_ARG -v TOTAL_READS=$TOTAL_READS -v MAPPER_ARG=$MAPPER_ARG -v MODE_ARG=$MODE_ARG -v MAPQ_FILTER=$MAPQ_FILTER -v NM_FILTER=$NM_FILTER -v MISMATCH_FILTER=$MISMATCH_FILTER -v MISMATCH_QUALITY_TC=$MISMATCH_QUALITY_TC -v MISMATCH_QUALITY=$MISMATCH_QUALITY -v INDEL_BAN_VAL="$INDEL_BAN_VAL" -v RMLIZER_COMMAND="$RMLIZER_COMMAND" -v BAM_NAME=$BAM_NAME -v OUTDIR_ARG="$OUTDIR_ARG" -v STRANDEDNESS_ARG=$STRANDEDNESS_ARG -f $AWK_FILE 2> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
 
     RMLIZER_EXIT=$?
 
@@ -584,7 +587,7 @@ do
 
     pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt
 
-    rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam
+    # rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam !!!!!
 
     samtools view -@ $((THR_ARG-1)) -hb ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.sam > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bam && rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.sam
 
