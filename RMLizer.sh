@@ -80,7 +80,6 @@ exit_err() {
 [ $# -eq 0 ] && exit_err
 # Set some defaults
 
-# HTS_BAM="./testdata_hts_strand.bam"
 UNIQ_ARG=1
 INDEL_BAN_VAL="disabled"
 THR_ARG=1
@@ -88,7 +87,7 @@ MD_ARG=0
 NODUPS_ARG=0
 PROCENT="1.00"
 MAPPER_ARG="STAR"
-MEM_ARG="1G"
+MEM_ARG="1"
 MODE_ARG="normal"
 STRANDEDNESS_ARG="reverse"
 AWK_FILE="./RMLizer.awk"
@@ -214,7 +213,10 @@ fi
 
 printf "CPU threads: ${THR_ARG}\n"
 
-# printf "RAM per thread: ${MEM_ARG}\n"
+printf "RAM per thread: ${MEM_ARG}\n"
+
+TOT_MEM=$((${MEM_ARG} * ${THR_ARG}))
+printf "RAM total: ${TOT_MEM}\n"
 
 ##### parameter check #####
 if ! [[ $MODE_ARG =~ ^.*nocount.*$|^.*normal.*$|^.*htseq_only.*$ ]] ; then
@@ -224,12 +226,13 @@ elif [[ $MODE_ARG =~ ^.*htseq_only.*$  ]] ; then
     echo "Mode: htseq_only"
 fi
 
-if [[ $NODUPS_ARG == 1 ]]; then
+if [[ $NODUPS_ARG == 1 ]] ; then
     echo "Duplicate removal [ -d ] is ON"
 else
     echo "Duplicate removal is OFF"
 fi
 
+# implement auto-detect in the future.
 if [[ $MAPPER_ARG =~ ^.*BBmap.*$ ]] ; then
     echo "Aligner: BBmap"
 elif [[ $MAPPER_ARG =~ ^.*STAR.*$ ]] ; then
@@ -238,6 +241,17 @@ fi
 
 if [[ $MD_ARG -eq 1 ]] ; then
     echo "Forcing MD tags"
+    if ! [ -f "$REF_ARG" ] ; then
+        echo "Fatal error: $REF_ARG not found but it is required for [ -f ] flag."
+        exit_err
+    elif ! [[ $REF_ARG =~ ^.+\.fasta$ || $REF_ARG =~ ^.+\.fa$ ]] ; then
+        echo "Fatal error: $REF_ARG does not look like a valid reference file."
+        exit_err
+    else
+        echo "Genome reference: ${REF_ARG}"
+    fi
+# else [ -z "$REF_ARG" ]
+#     echo "Provided reference ${REF_ARG} file was ignored as the [ -f ] flag was not set."
 fi
 
 if [[ $UNIQ_ARG == 1 ]] ; then
@@ -302,20 +316,10 @@ else
     done
 fi
 
-if ! [ -f "$REF_ARG" ] ; then
-    echo "Fatal error: $REF_ARG not found."
-    exit_err
-elif ! [[ $REF_ARG =~ ^.+\.fasta$ || $REF_ARG =~ ^.+\.fa$ ]] ; then
-    echo "Fatal error: $REF_ARG does not look like a valid reference file."
-    exit_err
-else
-    echo "Genome reference: $REF_ARG"
-fi
-
 if ! [ -f "$GTF_ARG" ] ; then
     echo "Fatal error: $GTF_ARG not found."
     exit_err
-elif ! [[ $GTF_ARG =~ ^.+\.gtf$ || $REF_ARG =~ ^.+\.gff$ ]] ; then
+elif ! [[ $GTF_ARG =~ ^.+\.gtf$ || $GTF_ARG =~ ^.+\.gff$ ]] ; then
     echo "Fatal error: $GTF_ARG does not look like a valid annotation file."
     exit_err
 else
@@ -362,11 +366,14 @@ if ! [[ $MODE_ARG =~ ^.*htseq_only.*$ ]] ; then
 
     if [[ $INDEL_BAN_VAL =~ disabled ]] ; then
         printf " Ignoring reads with indels: NO\n ------------------------------------\n"
-        printf " ----------------------------------\n"
+        REP7="Ignoring reads with indels: NO"
+
     elif [[ $INDEL_BAN_ARG =~ ban ]] ; then
         printf " Ignoring reads with indels: YES\n ------------------------------------\n"
+        REP7="Ignoring reads with indels: YES"
     else
         printf " Ignoring reads with indels equal or shorter than: ${INDEL_BAN_ARG}\n ------------------------------------\n"
+        REP7="Ignoring reads with indels equal or shorter than: ${INDEL_BAN_ARG}"
     fi
 
     XI_VALUE=$(echo ${MISMATCH_FILTER}*100|bc)
@@ -376,7 +383,6 @@ if ! [[ $MODE_ARG =~ ^.*htseq_only.*$ ]] ; then
     REP4="Min mismatch call quality (QV):\t${MISMATCH_QUALITY}"
     REP5="Min mismatch call quality TC (QVTC):\t${MISMATCH_QUALITY_TC}"
     REP6="Counting only unique reads:\t${UNIQ_REP}"
-    REP7="Indel ban threshold:\t${INDEL_BAN_ARG}"
 
 fi
 
@@ -404,10 +410,10 @@ if [[ $MODE_ARG == "htseq_only" ]]; then # test mode
 
             samtools calmd -@ $((THR_ARG-1)) $BAM $REF_ARG 2> /dev/null |\
 
-            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM - 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_stderr.log
+            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM - 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
 
         else
-            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM $BAM 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_stderr.log
+            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM $BAM 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
         fi |\
 
         htseq-count -o ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam -p BAM -r name -a 0 -f sam -s $STRANDEDNESS_ARG --nonunique $([[ $UNIQ_ARG -eq 1 ]] && echo "none" || echo "all") -i gene_id - $GTF_ARG > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_htseq_counts.txt
@@ -431,6 +437,9 @@ do
 
     if ! [[ $PROCENT == "1.00" ]] ; then
 
+        mkdir -p ${OUTDIR_ARG}/${BAM_NAME}
+        mkdir -p ${OUTDIR_ARG}/${BAM_NAME}/stderr
+
         echo "Subsampling "$(echo "scale=1;$PROCENT*100" | bc)"% of all reads"
         samtools view -h -b -s $PROCENT $BAM > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_subsampled.bam
         echo "Done!"
@@ -438,9 +447,6 @@ do
         BAM=${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_subsampled.bam
         BAM_NAME=$( echo $BAM | xargs basename | awk -F. '{print $1}' )
         BAM_FILE=$( echo $BAM | xargs basename )
-
-        mkdir -p ${OUTDIR_ARG}/${BAM_NAME}
-        mkdir -p ${OUTDIR_ARG}/${BAM_NAME}/stderr
 
         echo "--> Indexing"
         samtools index $BAM
@@ -463,13 +469,14 @@ do
 
         if [[ $MD_ARG -eq 1 ]] ; then
 
-            samtools calmd -@ $((THR_ARG-1)) $BAM $REF_ARG 2> /dev/null |\
-            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM - 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_stderr.log
+            samtools calmd -@ $((THR_ARG-1)) $BAM $REF_ARG 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_calmd.log |\
+            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM - 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
 
         else
 
-            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM $BAM 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_stderr.log
+            samtools collate -@$((THR_ARG-1)) -O --output-fmt SAM $BAM 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
 
+        fi |\
 
         htseq-count -o ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam -p BAM -r name -a 0 -f sam -s $STRANDEDNESS_ARG --nonunique $([[ $UNIQ_ARG -eq 1 ]] && echo "none" || echo "all") -i gene_id - $GTF_ARG > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_htseq_counts.txt
 
@@ -479,8 +486,16 @@ do
 
     fi
 
+    if [[ $MD_ARG -eq 1 ]] && [[ -f "${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_calmd.log" ]] ; then
+        
+        echo "Compressing calmd log file..."
+        pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_calmd.log || gzip ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_samtools_calmd.log
+
+    fi
+
     echo "--> Counting mismatches and making output files..."
     # header is fed here into gawk, but better save header separately, and add it later to the final output (script will likely be faster, as less conditions to check per each record)
+    
     TOTAL_READS=$(samtools view -h -c -@$((THR_ARG-1)) ${HTS_BAM})
 
     samtools view -@$((THR_ARG-1)) -h ${HTS_BAM} |\
@@ -493,124 +508,76 @@ do
         echo "Processing $BAM_FILE failed."
         echo "Please contact lecka48@liu.se."
         exit 1
+    else
+        rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam
+        samtools view -@ $((THR_ARG-1)) -hb ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.sam > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bam && rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.sam
     fi
+
+    echo "--> Preparing output files..."
+
+    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bed || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bed
+    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt
+    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov.txt
 
     echo "--> Processing mismatch frequency data..."
 
     MM_POS_FILES=$(ls -1 ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mismatch_positions*.txt)
-    # echo $MM_POS_FILES
     echo "--> Found $(echo ${MM_POS_FILES[@]} | wc -w | bc) chunks..."
 
-    for FILE in $MM_POS_FILES
+    for FILE in $MM_POS_FILES # these files are single chromosomes, so sorting by field 2 (sort -k2,2n) is sufficient; uniq deals with mismatches on read overlaps; may be removed if not needed; merged file is going for bedtools coverage to get coverages per position per mismatch; sorting skipped in fact, proper sorting  (sort -k1,1 -k2,2n | uniq ) will be done later
 
     do
-
-        # printf "Processing ${FILE}\n"
-        F_NAME=$(echo $FILE | xargs basename | rev | cut -d"." -f2- | rev)
-        # printf "File name without extension: ${F_NAME}\n"
-        # these files are single chromosomes, so sorting by field 2 is sufficient
-        # uniq deals with mismatches on read overlaps; may be removed if not needed\
-        # this file is going for bedtools coverage to get coverages
-        cat $FILE | sort -k2,2n | uniq >> ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mm_pos_sorted.txt && rm -f $FILE || echo "Error!"
-
+        cat $FILE >> ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mm_pos_sorted.txt && rm -f $FILE || echo "Error!"
     done
+    
+    # pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mm_pos_sorted.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mm_pos_sorted.txt
 
-    # if [[ $RSCRIPT_EXIT -eq 0 ]]; then
-    #     rm -f $(ls -1 ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mismatch_positions_*_sorted.txt)
-    # else
-    #     echo "Warning: files not processed correctly!"
-    # fi
+    # LEGACY: R approach might be changed to bedtools group by (requires sorting!) - in fact bedtools coverage and awk instead of bedtools merged were used; awk faster then the mixed approached with awk + bedtools merge using getline; update column orders, so that they follow bedtools criteria fully counting mutations will be better if done from shell file instead; essentially this solves the issue of read overlaps (via sort + uniq in bash) and mismatch counting (will be done in R instead, or maybe even by bedtools group by + count)
 
-    # this R approach might be changed to bedtools group by (requires sorting!) - in fact bedtools coverage and awk instead of bedtools merged were used;
-    # awk faster then the mixed approached with awk + bedtools merge using getline
-    # update column orders, so that they follow bedtools criteria fully
-    # counting mutations will be better if done from this file instead;
-    # essentially this solves the issue of read overlaps (via sort + uniq in bash)
-    # and mismatch counting ( will be done in R instead, or maybe even by bedtools group by + count! )
-
-
-        #
-        # Rscript --vanilla -e 'args = commandArgs(trailingOnly = TRUE)
-        #
-        #             if (!require("dplyr", character.only = TRUE)){
-        #                 install.packages("dplyr")
-        #                 library(dplyr)
-        #             }
-        #
-        #             if (!require("parallel", character.only = TRUE)){
-        #                 install.packages("parallel")
-        #                 library(parallel)
-        #             }
-        #
-        #             options(dplyr.summarise.inform = TRUE)
-        #
-        #             file_list <- list.files(path = args[1], full.names = TRUE, pattern = paste0(args[2], ".*_mismatch_positions_.*_sorted.txt"))
-        #
-        #             file_process <- function(x){
-        #
-        #               ret <- as_tibble(read.table(x,
-        #                                           header = F,
-        #                                           col.names = c("chr", "start", "end", "gene_id", "strand", "rname", "mismatch", "is_dup"),
-        #                                           colClasses = c("character", "character", "character", "character", "character", "character", "character", "logical")
-        #                                           )
-        #                                )
-        #               return(ret)
-        #
-        #               }
-        #
-        #               pos <- parallel::mclapply(file_list,
-        #                                         FUN = file_process,
-        #                                         mc.preschedule = FALSE,
-        #                                         mc.set.seed = TRUE,
-        #                                         mc.silent = FALSE,
-        #                                         mc.cores = getOption("mc.cores", args[3]),
-        #                                         mc.cleanup = TRUE,
-        #                                         mc.allow.recursive = TRUE)
-        #
-        #               pos <- do.call("rbind", pos)
-        #
-        #               message(paste("Found", nrow(pos), "potential mismatches"))
-        #
-        #               saveRDS(pos, file.path(gsub("positions.*txt", "positions.rds", file_list[1])))' ${OUTDIR_ARG}/${BAM_NAME} $BAM_NAME $THR_ARG 2> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
-
-    #  RSCRIPT_EXIT=$?
-
-    echo "--> Compressing output files and cleaning up..."
-
-    # cat $(ls -1 ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_depth_per_position_*.txt) > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_depth_per_position.txt && rm -f $(ls -1 ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_depth_per_position_*.txt)
+    echo "--> Still working..."
 
     cat $(ls -1 ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov_tot_per_gene_*.txt) > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt && rm -f $(ls -1 ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov_tot_per_gene_*.txt)
 
-    # pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_depth_per_position.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_depth_per_position.txt
+    cat ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt \
+    | gawk 'BEGIN{OFS="\t"}{split($1,a,"@");print a[1],a[2],a[3],a[4],$2}' \
+    > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov_totals.txt && rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt || echo "Error!"
+    
+    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov_totals.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov_totals.txt
 
-    cat ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt | gawk 'BEGIN{OFS="\t"}{split($1,a,"@");print a[1],a[2],a[3],a[4],a[5],$2}' > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_cov_totals.txt
+    echo "--> Running BedTools... - commented!!!!!!!!!!!!!!!!"
 
-    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_cov_tot_per_gene.txt
+    # maybe make AWK directly producing bed file instead of BAM, bam in fact not necessary, except for using to visualize the reads with igv, but bed can do the same.
 
-    # rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_hts_strand.bam !!!!!
+    echo "--> Running BedTools..."
 
-    samtools view -@ $((THR_ARG-1)) -hb ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.sam > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bam && rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.sam
-
-    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bed || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bed
-
-    pigz -h &> /dev/null && pigz -f -p $THR_ARG ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt || gzip ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt
-
-    # bedtools
-    # take care of error output
+    # samtools faidx ${REF_ARG} --fai-idx ${OUTDIR_ARG}/${REF_ARG}.fai
+    # cat ${OUTDIR_ARG}/${REF_ARG}.fai | awk 'BEGIN{OFS="\t"}{print $1,$2}' > ${OUTDIR_ARG}/chr.lenghts # && rm ${OUTDIR_ARG}/${REF_ARG}.fai
 
     bedtools bamtobed -i ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bam -splitD \
-    | gawk 'BEGIN{OFS=FS="\t"; }{gsub("/[12]$","", $4); print $1,$2,$3,$4; }' \
-    | sort -k4 \
-    | gawk 'BEGIN{FS=OFS="\t"; } {if (NR == 1){chr = $1; strt = $2; end = $3; rname = $4} else if ($4 == rname){if ($2 > end){print chr, strt, end, rname; chr = $1; strt = $2; end = $3; } else {if ($3 > end){end = $3; }}} else if ($4 != rname){print chr, strt, end, rname; chr = $1; strt = $2; end = $3; rname = $4; }} END{print chr, strt, end, rname}' \
-    | sortBed \
-    > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_bamtobed_splitD_sortBed_merged.bed
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    | gawk 'BEGIN{FS=OFS="\t"}; {gsub("/[12]$", "", $4); print $1, $2, $3, $4}' \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    | sort -k4 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    | gawk 'BEGIN{FS=OFS="\t"}; {if (NR == 1){chr = $1; strt = $2; end = $3; rname = $4; mate = "A"} else if ($4 == rname){mate = "B"; if ($2 > end){print chr, strt, end, rname "_" mate; chr = $1; strt = $2; end = $3; } else {if ($3 > end){end = $3; }}} else if ($4 != rname){mate = "A"; print chr, strt, end, rname "_" mate; chr = $1; strt = $2; end = $3; rname = $4; }} END{print chr, strt, end, rname "_" mate}' \
+    | sort-bed --max-mem ${TOT_MEM}G --tmpdir ${OUTDIR_ARG}/${BAM_NAME} - \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_bamtobed_splitD_sortBed_merged.bed 2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
+        
+    echo "--> Half way through..."
 
-    # take care of error output
     cat ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_mm_pos_sorted.txt \
-    | gawk 'BEGIN{OFS="\t"};{if ($8=="F"){print $1,$2,$3,$4,".",$5,$6,$7}}' \
-    | sortBed \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    | sort-bed --max-mem ${TOT_MEM}G --tmpdir ${OUTDIR_ARG}/${BAM_NAME} - \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    | uniq \
+    | gawk 'BEGIN{FS=OFS="\t"};{if($8 == "F"){print $1, $2, $3, $4, ".", $5, $6, $7; }}' \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
     | bedtools coverage -a stdin -b ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_bamtobed_splitD_sortBed_merged.bed -counts -sorted \
-    > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_coverage.bed
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log \
+    > ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_coverage.bed \
+    2>> ${OUTDIR_ARG}/${BAM_NAME}/stderr/${BAM_NAME}_RMLizer_stderr.log
 
     rm -f ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_bamtobed_splitD_sortBed_merged.bed
 
@@ -618,22 +585,22 @@ do
 
         TOTAL_TIME=$(($SECONDS - $START_TIME))
 
-         # this TXT file list counts of matches and mismatches for each fragment; second to last column denotes if a count is across the entire fragment (rows marked "a") or the part of the fragment where the reads overlap (rows marked as "a"); 
+            # this TXT file list counts of matches and mismatches for each fragment; second to last column denotes if a count is across the entire fragment (rows marked "a") or the part of the fragment where the reads overlap (rows marked as "a"); 
 
         if [ -f "${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt.gz" ] ; then
             echo "Mismatch counts saved as ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt.gz"
         fi
 
-         # this BED is redundant file list counts of matches and mismatches for each fragment; second to last column denotes if a count is across the entire fragment (rows marked "a") or the part of the fragment where the reads overlap (rows marked as "a"); 
+            # this BED is redundant file list counts of matches and mismatches for each fragment; second to last column denotes if a count is across the entire fragment (rows marked "a") or the part of the fragment where the reads overlap (rows marked as "a"); 
 
         if [ -f "${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bed.gz" ] ; then
             echo "Fragment coordinates BED file with counts saved as ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer.bed.gz"
         fi
 
-        # this BED file list mismatches with respective fragment names and coverage per given position; each entry corresponds to a single mismatch, e.g., if a position has a coverage of 5 and there are two TC mismatches at this position, there will be two records (one for each mismatch) for this position and coverage colimn will report 5 for each:
+            # this BED file list mismatches with respective fragment names and coverage per given position; each entry corresponds to a single mismatch, e.g., if a position has a coverage of 5 and there are two TC mismatches at this position, there will be two records (one for each mismatch) for this position and coverage colimn will report 5 for each:
 
-        if [ -f "${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt" ] ; then
-            echo "Coverage per mismatch per position save as ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_coverage.bed"
+        if [ -f "${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_counts.txt.gz" ] ; then
+            echo "Coverage per mismatch per position save as ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_coverage.bed.gz"
         fi
 
         if [ -f "${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_stats.log" ] ; then
@@ -643,7 +610,7 @@ do
             cat ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_stats.log
             echo "----------------------------------"
             printf "${REP1}\n${REP2}\n${REP3}\n${REP4}\n${REP5}\n${REP6}\n${REP7}\n" >> ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_stats.log
-            echo "Run statistics saved to ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_stats.log"
+            echo "Run statistics saved as ${OUTDIR_ARG}/${BAM_NAME}/${BAM_NAME}_RMLizer_stats.log"
         fi
 
         # echo "For details see readme" # add hyperlink here

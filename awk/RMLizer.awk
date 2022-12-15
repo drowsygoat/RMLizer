@@ -1,24 +1,25 @@
-# exclude fragments mapping to different genes
-# for positions, look at same read names (groups) for different mismatches at the same position; this is indicative of overlaps; use dplyr (count groups > 1 (2)) to make a list of such reads; this may possible be faster way to filter for overlaps; at first, just collapse (maybe with uniq shell function)
-# add functionality for unstranded experiments
-# enable strandedness for artifacts detection (strand-soecific artifacts in the data)
-# make useful for all mismatches equally
+# BAM files must be name-sorted or collated!
 
 BEGIN{
+
     start_time = systime()
     OFS="\t"
     FS="\t"
     SUBSEP="@"
+
     for (n=0;n<256;n++){
         phred_conv[sprintf("%c",n+33)]=n
     }
+
     to = 0 # total overlap
     pair = "TRUE"
     rn_prev = "NULL" # starting read for mate comparison (no read)
     mm_read_previous = "NULL" # starting read for mate comparison (no read)
     len_MDN_previous = 0
+    timestamp = systime()
 
     print "S(L)AM converter started @ " strftime() > "/dev/stderr"
+    print "gene_id", "rname", "is_dup", "Acov", "Ccov", "Gcov", "Tcov" > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_cov.txt"
 
     if (MODE_ARG == "normal"){
         print "gene_id", "read_name", "AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT", "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT", "OVER", "DUP" > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer_counts.txt"
@@ -28,9 +29,7 @@ BEGIN{
 # --- FUNCTIONS --- #
 
 function abs(v) {v += 0; return v < 0 ? -v : v}
-
 function min(v,k) {v += 0; k += 0; return v - k < 0 ? v : k}
-
 function max(v,k) {v += 0; k += 0; return v - k < 0 ? k : v}
 
 function tag_finder(tag,    i){
@@ -86,7 +85,7 @@ function MM_extractor(read_, quali_, cig_, md_value_,     md_ext, cig_ext, r, q,
         }
     }
 
-    split(quali_, q, "") # seps not needed
+    split(quali_, q, "")
     split(read_, r, "")
 
     len_MDN = 0 # cumulative lenght of Ms, Ds and Ns
@@ -120,7 +119,7 @@ function MM_extractor_simple(read_, cig_,     cig_ext,r,i,j,k){
     # loop through CIGAR "segments" to get their lengths (--> seps)
     k = 1
     for (i=0; i<=n-1; i++){
-        # iteratively add letters CIGAR operations
+        # iteratively add letters as CIGAR operations
         for (j=1; j<=seps[i]; j++){
             cig_ext[k]=b[i+1]
             k++
@@ -153,10 +152,11 @@ function MM_extractor_simple(read_, cig_,     cig_ext,r,i,j,k){
 }
 
 function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_previous_, mmdel_quali_current_, mmdel_md_ext_, len_MDN_current_, len_MDN_previous_,    i,a){
-    delete mmms; delete mmms_overlap; delete cnt_all; delete cnt_overlap; delete cnt
+    delete mmms; delete mmms_overlap; delete cnt_all; delete cnt_overlap; delete cnt; delete Tcnt
+
     os=0
 
-    if (rn_curr_ != rn_prev_){ # if previous read is NOT the mate read of the current read ...
+    if (rn_curr_ != rn_prev_){ # if previous read is NOT the mate read of the current read
         fr_start = $4
         fr_end = $4 + len_MDN_current_
         for (i in mmdel_md_ext_){
@@ -179,59 +179,87 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
             cnt["mmms"]++
             ###### A -> X
             if       (mmms[i] == "AG"){
-                cnt_all["AG"]++; cov_tot[$3, "A", "AG", gene_id, strand3, is_dup_curr]++
+                cnt_all["AG"]++
+                cov_tot["A", "AG", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "AA"){
-                cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["AA"]++
+                cov_tot["A", "AA", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "AC"){
-                cnt_all["AC"]++; cov_tot[$3, "A", "AC", gene_id, strand3, is_dup_curr]++
+                cnt_all["AC"]++
+                cov_tot["A", "AC", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "AT"){
-                cnt_all["AT"]++; cov_tot[$3, "A", "AT", gene_id, strand3, is_dup_curr]++
+                cnt_all["AT"]++
+                cov_tot["A", "AT", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "AN"){
                 cnt_all["AN"]++
+                Acnt[rname $4+i-1]++
             ###### C -> X
             }else if (mmms[i] == "CA"){
-                cnt_all["CA"]++; cov_tot[$3, "C", "CA", gene_id, strand3, is_dup_curr]++
+                cnt_all["CA"]++
+                cov_tot["C", "CA", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "CC"){
-                cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["CC"]++
+                cov_tot["C", "CC", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "CG"){
-                cnt_all["CG"]++; cov_tot[$3, "C", "CG", gene_id, strand3, is_dup_curr]++
+                cnt_all["CG"]++
+                cov_tot["C", "CG", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "CT"){
-                cnt_all["CT"]++; cov_tot[$3, "C", "CT", gene_id, strand3, is_dup_curr]++
+                cnt_all["CT"]++
+                cov_tot["C", "CT", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "CN"){
                 cnt_all["CN"]++
+                Ccnt[rname $4+i-1]++
             ###### G -> X
             }else if (mmms[i] == "GA"){
-                cnt_all["GA"]++; cov_tot[$3, "G", "GA", gene_id, strand3, is_dup_curr]++
+                cnt_all["GA"]++
+                cov_tot["G", "GA", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "GC"){
-                cnt_all["GC"]++; cov_tot[$3, "G", "GC", gene_id, strand3, is_dup_curr]++
+                cnt_all["GC"]++
+                cov_tot["G", "GC", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "GG"){
-                cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["GG"]++
+                cov_tot["G", "GG", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "GT"){
-                cnt_all["GT"]++; cov_tot[$3, "G", "GT", gene_id, strand3, is_dup_curr]++
+                cnt_all["GT"]++
+                cov_tot["G", "GT", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "GN"){
                 cnt_all["GN"]++
+                Gcnt[rname $4+i-1]++
             ###### T -> X
             }else if (mmms[i] == "TA"){
-                cnt_all["TA"]++; cov_tot[$3, "T", "TA", gene_id, strand3, is_dup_curr]++
+                cnt_all["TA"]++
+                cov_tot["T", "TA", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "TC"){
                 if (phred_conv[mmdel_quali_current_[i]] >= MISMATCH_QUALITY_TC){
-                    cnt_all["TC"]++; cov_tot[$3, "T", "TC", gene_id, strand3, is_dup_curr]++
+                    cnt_all["TC"]++
+                    cov_tot["T", "TC", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     if (phred_conv[mmdel_quali_current_[i]] > 41 || phred_conv[mmdel_quali_current_[i]] < 0){
                         print "Error. Quality scores out of range. Is it Illumina 1.8+ (Phred 33+) encoding?" > "/dev/stderr"
@@ -240,14 +268,18 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     }
                 }
             }else if (mmms[i] == "TG"){
-                cnt_all["TG"]++; cov_tot[$3, "T", "TG", gene_id, strand3, is_dup_curr]++
+                cnt_all["TG"]++
+                cov_tot["T", "TG", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "TT"){
-                cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["TT"]++
+                cov_tot["T", "TT", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "TN"){
                 cnt_all["TN"]++
+                Tcnt[rname $4+i-1]++
             ###### N -> X
             }else if (mmms[i] == "NA"){
                 cnt_all["NA"]++
@@ -326,59 +358,87 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
             if (mmms_overlap[i] == ""){
                 ###### A -> X
                 if       (mmms[i] == "AG"){
-                    cnt_all["AG"]++; cov_tot[$3, "A", "AG", gene_id, strand3, is_dup_curr]++
-                    print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt" # most important files
+                    cnt_all["AG"]++
+                    cov_tot["A", "AG", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
+                    print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "AA"){
-                    cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["AA"]++
+                    cov_tot["A", "AA", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "AC"){
-                    cnt_all["AC"]++; cov_tot[$3, "A", "AC", gene_id, strand3, is_dup_curr]++
+                    cnt_all["AC"]++
+                    cov_tot["A", "AC", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "AT"){
-                    cnt_all["AT"]++; cov_tot[$3, "A", "AT", gene_id, strand3, is_dup_curr]++
+                    cnt_all["AT"]++
+                    cov_tot["A", "AT", gene_id, is_dup_curr]++
+                    cnt_all["AT"]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "AN"){
                     cnt_all["AN"]++
+                    Acnt[rname $4+i-1]++
                 ###### C -> X
                 }else if (mmms[i] == "CA"){
-                    cnt_all["CA"]++; cov_tot[$3, "C", "CA", gene_id, strand3, is_dup_curr]++
+                    cnt_all["CA"]++
+                    cov_tot["C", "CA", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "CC"){
-                    cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["CC"]++
+                    cov_tot["C", "CC", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "CG"){
-                    cnt_all["CG"]++; cov_tot[$3, "C", "CG", gene_id, strand3, is_dup_curr]++
+                    cnt_all["CG"]++
+                    cov_tot["C", "CG", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "CT"){
-                    cnt_all["CT"]++; cov_tot[$3, "C", "CT", gene_id, strand3, is_dup_curr]++
+                    cnt_all["CT"]++
+                    cov_tot["C", "CT", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "CN"){
                     cnt_all["CN"]++
+                    Ccnt[rname $4+i-1]++
                 ###### G -> X
                 }else if (mmms[i] == "GA"){
-                    cnt_all["GA"]++; cov_tot[$3, "G", "GA", gene_id, strand3, is_dup_curr]++
+                    cnt_all["GA"]++
+                    cov_tot["G", "GA", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "GC"){
-                    cnt_all["GC"]++; cov_tot[$3, "G", "GC", gene_id, strand3, is_dup_curr]++
+                    cnt_all["GC"]++
+                    cov_tot["G", "GC", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "GG"){
-                    cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["GG"]++
+                    cov_tot["G", "GG", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "GT"){
-                    cnt_all["GT"]++; cov_tot[$3, "G", "GT", gene_id, strand3, is_dup_curr]++
+                    cnt_all["GT"]++
+                    cov_tot["G", "GT", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "GN"){
                     cnt_all["GN"]++
+                    Gcnt[rname $4+i-1]++
                 ###### T -> X
                 }else if (mmms[i] == "TA"){
-                    cnt_all["TA"]++; cov_tot[$3, "T", "TA", gene_id, strand3, is_dup_curr]++
+                    cnt_all["TA"]++
+                    cov_tot["T", "TA", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "TC"){
                     if (phred_conv[mmdel_quali_current_[i]] >= MISMATCH_QUALITY_TC){
-                        cnt_all["TC"]++; cov_tot[$3, "T", "TC", gene_id, strand3, is_dup_curr]++
+                        cnt_all["TC"]++
+                        cov_tot["T", "TC", gene_id, is_dup_curr]++
+                        Tcnt[rname $4+i-1]++
                         print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         if (phred_conv[mmdel_quali_current_[i]] > 41 || phred_conv[mmdel_quali_current_[i]] < 0){
                             print "Error. Quality scores out of range. Is it Illumina 1.8+ (Phred 33+) encoding?" > "/dev/stderr"
@@ -386,16 +446,19 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                             exit 1
                         }
                     }
-                    # include T counter for reads!
                 }else if (mmms[i] == "TG"){
-                    cnt_all["TG"]++; cov_tot[$3, "T", "TG", gene_id, strand3, is_dup_curr]++
+                    cnt_all["TG"]++
+                    cov_tot["T", "TG", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "TT"){
-                    cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["TT"]++
+                    cov_tot["T", "TT", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "TN"){
                     cnt_all["TN"]++
+                    Tcnt[rname $4+i-1]++
                 ###### N -> X
                 }else if (mmms[i] == "NA"){
                     cnt_all["NA"]++
@@ -417,7 +480,6 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "AAA"){
                     cnt_overlap["AA"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "ACC"){
                     cnt_overlap["AC"]++
@@ -432,7 +494,6 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "CCC"){
                     cnt_overlap["CC"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "CGG"){
                     cnt_overlap["CG"]++
@@ -451,7 +512,6 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "GGG"){
                     cnt_overlap["GG"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "GTT"){
                     cnt_overlap["GT"]++
@@ -477,7 +537,6 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "TTT"){
                     cnt_overlap["TT"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "TNN"){
                     cnt_overlap["TN"]++
@@ -492,65 +551,10 @@ function TCRA_producer_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     cnt_overlap["NT"]++
                 }else if (mmms_overlap[i] == "NNN"){
                     cnt_overlap["NN"]++
-                #############################################
-                # }else if (mmms_overlap[i] == "A[^G]G"){
-                #     cnt_all["AG"]--
-                # }else if (mmms_overlap[i] == "A[^A]A"){
-                #     cnt_all["AA"]--
-                # }else if (mmms_overlap[i] == "A[^C]C"){
-                #     cnt_all["AC"]--
-                # }else if (mmms_overlap[i] == "A[^T]T"){
-                #     cnt_all["AT"]--
-                # }else if (mmms_overlap[i] == "A[^N]N"){
-                # ###### C -> X
-                # }else if (mmms_overlap[i] == "C[^A]A"){
-                #     cnt_all["CA"]--
-                # }else if (mmms_overlap[i] == "C[^C]C"){
-                #     cnt_all["CC"]--
-                # }else if (mmms_overlap[i] == "C[^G]G"){
-                #     cnt_all["CG"]--
-                # }else if (mmms_overlap[i] == "C[^T]T"){
-                #     cnt_all["CT"]--
-                # }else if (mmms_overlap[i] == "C[^N]N"){
-                #     cnt_all["CN"]--
-                # ###### G -> X
-                # }else if (mmms_overlap[i] == "G[^A]A"){
-                #     cnt_all["GA"]--
-                # }else if (mmms_overlap[i] == "G[^C]C"){
-                #     cnt_all["GC"]--
-                # }else if (mmms_overlap[i] == "G[^G]G"){
-                #     cnt_all["GG"]--
-                # }else if (mmms_overlap[i] == "G[^T]T"){
-                #     cnt_all["GT"]--
-                # }else if (mmms_overlap[i] == "G[^N]N"){
-                #     cnt_all["GN"]--
-                # ###### T -> X
-                # }else if (mmms_overlap[i] == "T[^A]A"){
-                #     cnt_all["TA"]--
-                # }else if (mmms_overlap[i] == "T[^C]C"){
-                #     cnt_all["TC"]--
-                # }else if (mmms_overlap[i] == "T[^G]G"){
-                #     cnt_all["TG"]--
-                # }else if (mmms_overlap[i] == "T[^T]T"){
-                #     cnt_all["TT"]--
-                # }else if (mmms_overlap[i] == "T[^N]N"){
-                #     cnt_all["TN"]--
-                # ###### N -> X
-                # }else if (mmms_overlap[i] == "N[^A]A"){
-                #     cnt_all["NA"]--
-                # }else if (mmms_overlap[i] == "N[^C]C"){
-                #     cnt_all["NC"]--
-                # }else if (mmms_overlap[i] == "N[^G]G"){
-                #     cnt_all["NG"]--
-                # }else if (mmms_overlap[i] == "N[^T]T"){
-                #     cnt_all["NT"]--
-                # }else if (mmms_overlap[i] == "N[^N]N"){
-                #     cnt_all["NN"]--
                 }
             }
         }
     }
-
     sum_cnt_all = cnt["mmms"]+0
     if (sum_cnt_all > 0){
         xi = (cnt["match"]+0) / sum_cnt_all
@@ -584,10 +588,11 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
         for (i in mmms){ # REVERSE
             cnt["mmms"]++
             ###### A -> X
-            # print phred_conv[mmdel_quali_current_[i]],"---", i
             if (mmms[i] == "AG"){
                 if (phred_conv[mmdel_quali_current_[i]] >= MISMATCH_QUALITY_TC){
-                    cnt_all["TC"]++; cov_tot[$3, "T", "TC", gene_id, strand3, is_dup_curr]++
+                    cnt_all["TC"]++
+                    cov_tot["T", "TC", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     if (phred_conv[mmdel_quali_current_[i]] > 41 || phred_conv[mmdel_quali_current_[i]] < 0){
                         print "Error. Quality scores out of range. Is it Illumina 1.8+ (Phred 33+) encoding?" > "/dev/stderr"
@@ -596,65 +601,95 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     }
                 }
             }else if (mmms[i] == "AA"){
-                cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["TT"]++
+                cov_tot["T", "TT", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "AC"){
-                cnt_all["TG"]++; cov_tot[$3, "T", "TG", gene_id, strand3, is_dup_curr]++
+                cnt_all["TG"]++
+                cov_tot["T", "TG", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "AT"){
-                cnt_all["TA"]++; cov_tot[$3, "T", "TA", gene_id, strand3, is_dup_curr]++
+                cnt_all["TA"]++
+                cov_tot["T", "TA", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "AN"){
                 cnt_all["TN"]++
+                Tcnt[rname $4+i-1]++
             ###### C -> X
             }else if (mmms[i] == "CA"){
-                cnt_all["GT"]++; cov_tot[$3, "G", "GT", gene_id, strand3, is_dup_curr]++
+                cnt_all["GT"]++
+                cov_tot["G", "GT", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "CC"){
-                cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["GG"]++
+                cov_tot["G", "GG", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "CG"){
-                cnt_all["GC"]++; cov_tot[$3, "G", "GC", gene_id, strand3, is_dup_curr]++
+                cnt_all["GC"]++
+                cov_tot["G", "GC", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "CT"){
-                cnt_all["GA"]++; cov_tot[$3, "G", "GA", gene_id, strand3, is_dup_curr]++
+                cnt_all["GA"]++
+                cov_tot["G", "GA", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "CN"){
                 cnt_all["GN"]++
+                Gcnt[rname $4+i-1]++
             ###### G -> X
             }else if (mmms[i] == "GA"){
-                cnt_all["CT"]++; cov_tot[$3, "C", "CT", gene_id, strand3, is_dup_curr]++
+                cnt_all["CT"]++
+                cov_tot["C", "CT", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "GC"){
-                cnt_all["CG"]++; cov_tot[$3, "C", "CG", gene_id, strand3, is_dup_curr]++
+                cnt_all["CG"]++
+                cov_tot["C", "CG", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "GG"){
-                cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["CC"]++
+                cov_tot["C", "CC", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "GT"){
-                cnt_all["CA"]++; cov_tot[$3, "C", "CA", gene_id, strand3, is_dup_curr]++
+                cnt_all["CA"]++
+                cov_tot["C", "CA", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "GN"){
                 cnt_all["CN"]++
+                Ccnt[rname $4+i-1]++
             ###### T -> X
             }else if (mmms[i] == "TA"){
-                cnt_all["AT"]++; cov_tot[$3, "A", "AT", gene_id, strand3, is_dup_curr]++
+                cnt_all["AT"]++
+                cov_tot["A", "AT", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "TC"){
-                cnt_all["AG"]++; cov_tot[$3, "A", "AG", gene_id, strand3, is_dup_curr]++
+                cnt_all["AG"]++
+                cov_tot["A", "AG", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "TG"){
-                cnt_all["AC"]++; cov_tot[$3, "A", "AC", gene_id, strand3, is_dup_curr]++
+                cnt_all["AC"]++
+                cov_tot["A", "AC", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
             }else if (mmms[i] == "TT"){
-                cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["AA"]++
+                cov_tot["A", "AA", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
                 cnt["match"]++
             }else if (mmms[i] == "TN"){
                 cnt_all["AN"]++
+                Acnt[rname $4+i-1]++
             ###### N -> X
             }else if (mmms[i] == "NA"){
                 cnt_all["NT"]++
@@ -730,12 +765,12 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
         }
         for (i in mmms){ # REVERSE
             cnt["mmms"]++
-            # print phred_conv[mmdel_quali_current_[i]],"---", i, mmms[i], mmms_overlap[i]
             if (mmms_overlap[i] == ""){
                 ###### A -> X
                 if (mmms[i] == "AG"){
                     if (phred_conv[mmdel_quali_current_[i]] >= MISMATCH_QUALITY_TC){
-                        cnt_all["TC"]++; cov_tot[$3, "T", "TC", gene_id, strand3, is_dup_curr]++
+                        cnt_all["TC"]++; cov_tot["T", "TC", gene_id, is_dup_curr]++
+                        Tcnt[rname $4+i-1]++
                         print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         if (phred_conv[mmdel_quali_current_[i]] > 41 || phred_conv[mmdel_quali_current_[i]] < 0){
                             print "Error. Quality scores out of range. Is it Illumina 1.8+ (Phred 33+) encoding?" > "/dev/stderr"
@@ -744,65 +779,95 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                         }
                     }
                 }else if (mmms[i] == "AA"){
-                    cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["TT"]++
+                    cov_tot["T", "TT", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "AC"){
-                    cnt_all["TG"]++; cov_tot[$3, "T", "TG", gene_id, strand3, is_dup_curr]++
+                    cnt_all["TG"]++
+                    cov_tot["T", "TG", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "AT"){
-                    cnt_all["TA"]++; cov_tot[$3, "T", "TA", gene_id, strand3, is_dup_curr]++
+                    cnt_all["TA"]++
+                    cov_tot["T", "TA", gene_id, is_dup_curr]++
+                    Tcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "AN"){
                     cnt_all["TN"]++
+                    Tcnt[rname $4+i-1]++
                 ###### C -> X
                 }else if (mmms[i] == "CA"){
-                    cnt_all["GT"]++; cov_tot[$3, "G", "GT", gene_id, strand3, is_dup_curr]++
+                    cnt_all["GT"]++
+                    cov_tot["G", "GT", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "CC"){
-                    cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["GG"]++
+                    cov_tot["G", "GG", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "CG"){
-                    cnt_all["GC"]++; cov_tot[$3, "G", "GC", gene_id, strand3, is_dup_curr]++
+                    cnt_all["GC"]++
+                    cov_tot["G", "GC", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "CT"){
-                    cnt_all["GA"]++; cov_tot[$3, "G", "GA", gene_id, strand3, is_dup_curr]++
+                    cnt_all["GA"]++
+                    cov_tot["G", "GA", gene_id, is_dup_curr]++
+                    Gcnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "CN"){
                     cnt_all["GN"]++
+                    Gcnt[rname $4+i-1]++
                 ###### G -> X
                 }else if (mmms[i] == "GA"){
-                    cnt_all["CT"]++; cov_tot[$3, "C", "CT", gene_id, strand3, is_dup_curr]++
+                    cnt_all["CT"]++
+                    cov_tot["C", "CT", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "GC"){
-                    cnt_all["CG"]++; cov_tot[$3, "C", "CG", gene_id, strand3, is_dup_curr]++
+                    cnt_all["CG"]++
+                    cov_tot["C", "CG", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "GG"){
-                    cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["CC"]++
+                    cov_tot["C", "CC", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "GT"){
-                    cnt_all["CA"]++; cov_tot[$3, "C", "CA", gene_id, strand3, is_dup_curr]++
+                    cnt_all["CA"]++
+                    cov_tot["C", "CA", gene_id, is_dup_curr]++
+                    Ccnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "GN"){
                     cnt_all["CN"]++
+                    Ccnt[rname $4+i-1]++
                 ###### T -> X
                 }else if (mmms[i] == "TA"){
-                    cnt_all["AT"]++; cov_tot[$3, "A", "AT", gene_id, strand3, is_dup_curr]++
+                    cnt_all["AT"]++
+                    cov_tot["A", "AT", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "TC"){
-                    cnt_all["AG"]++; cov_tot[$3, "A", "AG", gene_id, strand3, is_dup_curr]++
+                    cnt_all["AG"]++
+                    cov_tot["A", "AG", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "TG"){
-                    cnt_all["AC"]++; cov_tot[$3, "A", "AC", gene_id, strand3, is_dup_curr]++
+                    cnt_all["AC"]++
+                    cov_tot["A", "AC", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms[i] == "TT"){
-                    cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                    cnt_all["AA"]++
+                    cov_tot["A", "AA", gene_id, is_dup_curr]++
+                    Acnt[rname $4+i-1]++
                     cnt["match"]++
                 }else if (mmms[i] == "TN"){
                     cnt_all["AN"]++
+                    Acnt[rname $4+i-1]++
                 ###### N -> X
                 }else if (mmms[i] == "NA"){
                     cnt_all["NT"]++
@@ -831,7 +896,6 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     }
                 }else if (mmms_overlap[i] == "AAA"){
                     cnt_overlap["TT"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "ACC"){
                     cnt_overlap["TG"]++
@@ -847,7 +911,6 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "CCC"){
                     cnt_overlap["GG"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "CGG"){
                     cnt_overlap["GC"]++
@@ -866,7 +929,6 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "GGG"){
                     cnt_overlap["CC"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "GTT"){
                     cnt_overlap["CA"]++
@@ -885,7 +947,6 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                     print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                 }else if (mmms_overlap[i] == "TTT"){
                     cnt_overlap["AA"]++
-                    # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                     cnt["match"]++
                 }else if (mmms_overlap[i] == "TNN"){
                     cnt_overlap["AN"]++
@@ -901,60 +962,6 @@ function TCRA_producer_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_p
                 }else if (mmms_overlap[i] == "NNN"){
                     cnt_overlap["NN"]++
                 ####################################
-                # }else if (mmms_overlap[i] == "A[^G]G"){ # REVERSE!!!!!
-                #     cnt_all["TC"]--
-                # }else if (mmms_overlap[i] == "A[^A]A"){
-                #     cnt_all["TT"]--
-                # }else if (mmms_overlap[i] == "A[^C]C"){
-                #     cnt_all["TG"]--
-                # }else if (mmms_overlap[i] == "A[^T]T"){
-                #     cnt_all["TA"]--
-                # }else if (mmms_overlap[i] == "A[^N]N"){
-                #     cnt_all["TN"]--
-                # ###### C -> X
-                # }else if (mmms_overlap[i] == "C[^A]A"){
-                #     cnt_all["GT"]--
-                # }else if (mmms_overlap[i] == "C[^C]C"){
-                #     cnt_all["GG"]--
-                # }else if (mmms_overlap[i] == "C[^G]G"){
-                #     cnt_all["GC"]--
-                # }else if (mmms_overlap[i] == "C[^T]T"){
-                #     cnt_all["GA"]--
-                # }else if (mmms_overlap[i] == "C[^N]N"){
-                #     cnt_all["GN"]--
-                # ###### G -> X
-                # }else if (mmms_overlap[i] == "G[^A]A"){
-                #     cnt_all["CT"]--
-                # }else if (mmms_overlap[i] == "G[^C]C"){
-                #     cnt_all["CG"]--
-                # }else if (mmms_overlap[i] == "G[^G]G"){
-                #     cnt_all["CC"]--
-                # }else if (mmms_overlap[i] == "G[^T]T"){
-                #     cnt_all["CA"]--
-                # }else if (mmms_overlap[i] == "G[^N]N"){
-                #     cnt_all["CN"]--
-                # ###### T -> X
-                # }else if (mmms_overlap[i] == "T[^A]A"){
-                #     cnt_all["AT"]--
-                # }else if (mmms_overlap[i] == "T[^C]C"){
-                #     cnt_all["AG"]--
-                # }else if (mmms_overlap[i] == "T[^G]G"){
-                #     cnt_all["AC"]--
-                # }else if (mmms_overlap[i] == "T[^T]T"){
-                #     cnt_all["AA"]--
-                # }else if (mmms_overlap[i] == "T[^N]N"){
-                #     cnt_all["AN"]--
-                # ###### N -> X
-                # }else if (mmms_overlap[i] == "N[^A]A"){
-                #     cnt_all["NT"]--
-                # }else if (mmms_overlap[i] == "N[^C]C"){
-                #     cnt_all["NG"]--
-                # }else if (mmms_overlap[i] == "N[^G]G"){
-                #     cnt_all["NC"]--
-                # }else if (mmms_overlap[i] == "N[^T]T"){
-                #     cnt_all["NA"]--
-                # }else if (mmms_overlap[i] == "N[^N]N"){
-                #     cnt_all["NN"]--
                 }
             }
         }
@@ -976,17 +983,21 @@ function TCRA_producer_simple_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
         fr_end = $4 + len_MDN_current_
         for (i in mmdel_read_current_){
             if (mmdel_read_current_[i] == "A"){
-                cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["AA"]++
+                cov_tot["A", "AA", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "C"){
-                cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["CC"]++
+                cov_tot["C", "CC", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "G"){
-                cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["GG"]++
+                cov_tot["G", "GG", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "T"){
-                cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["TT"]++
+                cov_tot["T", "TT", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "N"){
                 cnt_all["NN"]++
             }
@@ -999,17 +1010,21 @@ function TCRA_producer_simple_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
             for (i in mmdel_read_current_){
                 if (i+0 > pos_shift + len_MDN_previous_){
                     if (mmdel_read_current_[i] == "A"){
-                        cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["AA"]++
+                        cov_tot["A", "AA", gene_id, is_dup_curr]++
+                        Acnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "C"){
-                        cnt_all["CC"]++;  cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["CC"]++
+                        cov_tot["C", "CC", gene_id, is_dup_curr]++
+                        Ccnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "G"){
-                        cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["GG"]++
+                        cov_tot["G", "GG", gene_id, is_dup_curr]++
+                        Gcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "T"){
-                        cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["TT"]++
+                        cov_tot["T", "TT", gene_id, is_dup_curr]++
+                        Tcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "N"){
                         cnt_all["NN"]++
                     }
@@ -1017,22 +1032,18 @@ function TCRA_producer_simple_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
                 if (i+0 <= len_MDN_previous_ + pos_shift){
                     if (mmdel_read_current_[i] == "A"){
                         cnt_overlap["AA"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "C"){
                         cnt_overlap["CC"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "G"){
                         cnt_overlap["GG"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "T"){
                         cnt_overlap["TT"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "N"){
@@ -1042,23 +1053,27 @@ function TCRA_producer_simple_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
                     }
                 }
             }
-        }else if (pos_shift > 0){ # check if the mate starts in the same position or downstream
+        }else if (pos_shift > 0){ # check if the mate starts t the same position or downstream
             fr_start = $4
             fr_end = $8 + len_MDN_previous_
             for (i in mmdel_read_current_){
                 if (i+0 <= pos_shift){
                     if (mmdel_read_current_[i] == "A"){
-                        cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["AA"]++
+                        cov_tot["A", "AA", gene_id, is_dup_curr]++
+                        Acnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "C"){
-                        cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["CC"]++
+                        cov_tot["C", "CC", gene_id, is_dup_curr]++
+                        Ccnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "G"){
-                        cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["GG"]++
+                        cov_tot["G", "GG", gene_id, is_dup_curr]++
+                        Gcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "T"){
-                        cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["TT"]++
+                        cov_tot["T", "TT", gene_id, is_dup_curr]++
+                        Tcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "N"){
                         cnt_all["NN"]++
                     }
@@ -1066,22 +1081,18 @@ function TCRA_producer_simple_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
                 if (i+0 > pos_shift && i+0 <= len_MDN_current_){
                     if (mmdel_read_current_[i] == "A"){
                         cnt_overlap["AA"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "C"){
                         cnt_overlap["CC"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "G"){
                         cnt_overlap["GG"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "T"){
                         cnt_overlap["TT"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "N"){
@@ -1100,27 +1111,31 @@ function TCRA_producer_simple_for(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 }
 
 function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel_read_previous_, len_MDN_current_, len_MDN_previous_,      i,j){
-    delete cnt_overlap; delete cnt_all
+    delete cnt_overlap
+    delete cnt_all
 
     os = 0 # overlap size counter reset
 
     if (rn_curr_ != rn_prev_){ # previous read is NOT the mate read of the current read
-        # delete cnt_previous
         fr_start = $4
         fr_end = $4 + len_MDN_current_
         for (i in mmdel_read_current_){ # REVERSE !!!
             if (mmdel_read_current_[i] == "A"){
-                cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["TT"]++
+                cov_tot["T", "TT", gene_id, is_dup_curr]++
+                Tcnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "C"){
-                cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["GG"]++
+                cov_tot["G", "GG", gene_id, is_dup_curr]++
+                Gcnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "G"){
-                cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["CC"]++
+                cov_tot["C", "CC", gene_id, is_dup_curr]++
+                Ccnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "T"){
-                cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                cnt_all["AA"]++
+                cov_tot["A", "AA", gene_id, is_dup_curr]++
+                Acnt[rname $4+i-1]++
             }else if (mmdel_read_current_[i] == "N"){
                 cnt_all["NN"]++
             }
@@ -1133,17 +1148,21 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
             for (i in mmdel_read_current_){
                 if (i+0 > pos_shift + len_MDN_previous_){ # REVERSE !!!
                     if (mmdel_read_current_[i] == "A"){
-                        cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["TT"]++
+                        cov_tot["T", "TT", gene_id, is_dup_curr]++
+                        Tcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "C"){
-                        cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["GG"]++
+                        cov_tot["G", "GG", gene_id, is_dup_curr]++
+                        Gcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "G"){
-                        cnt_all["CC"]++; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["CC"]++
+                        cov_tot["C", "CC", gene_id, is_dup_curr]++
+                        Ccnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "T"){
-                        cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["AA"]++
+                        cov_tot["A", "AA", gene_id, is_dup_curr]++
+                        Acnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "N"){
                         cnt_all["NN"]++
                     }
@@ -1151,22 +1170,18 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
                 if (i+0 <= len_MDN_previous_ + pos_shift){ # REVERSE !!!
                     if (mmdel_read_current_[i] == "A"){
                         cnt_overlap["TT"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "C"){
                         cnt_overlap["GG"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "G"){
                         cnt_overlap["CC"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "T"){
                         cnt_overlap["AA"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "N"){
@@ -1182,17 +1197,21 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
             for (i in mmdel_read_current_){ # REVERSE !!!
                 if (i+0 <= pos_shift){ # REVERSE !!!
                     if (mmdel_read_current_[i] == "A"){
-                        cnt_all["TT"]++; cov_tot[$3, "T", "TT", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["TT"]++
+                        cov_tot["T", "TT", gene_id, is_dup_curr]++
+                        Tcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "C"){
-                        cnt_all["GG"]++; cov_tot[$3, "G", "GG", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["GG"]++
+                        cov_tot["G", "GG", gene_id, is_dup_curr]++
+                        Gcnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "G"){
-                        cnt_all["CC"]++; ; cov_tot[$3, "C", "CC", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["CC"]++
+                        cov_tot["C", "CC", gene_id, is_dup_curr]++
+                        Ccnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "T"){
-                        cnt_all["AA"]++; cov_tot[$3, "A", "AA", gene_id, strand3, is_dup_curr]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
+                        cnt_all["AA"]++
+                        cov_tot["A", "AA", gene_id, is_dup_curr]++
+                        Acnt[rname $4+i-1]++
                     }else if (mmdel_read_current_[i] == "N"){
                         cnt_all["NN"]++
                     }
@@ -1200,22 +1219,18 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
                 if (i+0 > pos_shift && i+0 <= len_MDN_current_){ # REVERSE !!!
                     if (mmdel_read_current_[i] == "A"){
                         cnt_overlap["TT"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "TT", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "C"){
                         cnt_overlap["GG"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "GG", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "G"){
                         cnt_overlap["CC"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "CC", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "T"){
                         cnt_overlap["AA"]++
-                        # print $3, $4+i-2, $4+i-1, gene_id, strand3, rn_curr, "AA", is_dup_curr, phred_conv[mmdel_quali_current_[i]] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_mismatch_positions_" $3 ".txt"
                         os++ # overlap size counter
                         to++ # total overlap size counter
                     }else if (mmdel_read_current_[i] == "N"){
@@ -1236,19 +1251,22 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 # ---- main routine ---- #
 
 {
-    # chunk size might be provided as a parameter
-    # consider moving in case many record skipped, thoug 1000000 record unlikely to take less than 1s
-    if ((NR/1000000)%1==0){
 
-        timestamp=systime()
+    # consider moving in case many records skipped, though 1000000 record will unlikely to take less than 1s
 
+    if (TOTAL_READS < 1000000){
+        for (i in cov_tot){
+            print i, cov_tot[i] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_cov_tot_per_gene_000.txt"
+        }
+    }else{
+        if ((NR/1000000)%1==0){
+            timestamp = systime()
+        }
         for (i in cov_tot){
             print i, cov_tot[i] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_cov_tot_per_gene_" timestamp ".txt"
         }
-
-        delete cov_tot
-
     }
+    delete cov_tot
 
     if ($1 ~ /^@/){ # write header lines; replace this by adding the header separately via concatenating the SAM file instead
         header=1
@@ -1257,18 +1275,18 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
         next
     }
 
+    # do it properly using tee
     if (NR < 100000){
         if ((NR/(10000-header_lines))%1==0){
             printf "--> %s out of %s records (%.2f\%) processed\n", NR, TOTAL_READS, (NR/TOTAL_READS)*100
+            printf "--> %s out of %s records (%.2f\%) processed\n", NR, TOTAL_READS, (NR/TOTAL_READS)*100 > "/dev/stderr"
         }
     }else{
-        if ((NR/(100000-header_lines))%1==0){
+        if ((NR/(1000000-header_lines))%1==0){
             printf "--> %s out of %s records (%.2f\%) processed\n", NR, TOTAL_READS, (NR/TOTAL_READS)*100
+            printf "--> %s out of %s records (%.2f\%) processed\n", NR, TOTAL_READS, (NR/TOTAL_READS)*100 > "/dev/stderr"
         }
     }
-
-    ############################## Save read name #########################################
-
 
     if (and($2, 0x400)){ # skip duplicates
 
@@ -1286,11 +1304,9 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
     stats["total_reads_after_duplicate_removal"]++
 
     if (header == 1){ # first non-header record; change it so that header is extracted separately instead of header end being separately extracted for on every record
-
         header = 0
         is_dup_prev = is_dup_curr
         print "@PG","ID:RMLizer.sh","VN:1.0","CL:"RMLizer_COMMAND > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.sam"
-
     }
 
     if ($6 ~ INDEL_BAN_VAL){
@@ -1346,7 +1362,7 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
         next
     }
 
-    if ($6 !~ /[M=X]/){ # only include reads with matches to the template; overlap clipping not used any longer, comment left as legacy
+    if ($6 !~ /[M=X]/){ # only include reads with matches to the template; overlap clipping not used any longer, left as legacy
         next
     }
 
@@ -1357,10 +1373,6 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
     gene_cnt_clean[gene_id, strand3, is_dup_curr]++
 
     rn_curr = $1
-    # split($1,a,":")
-    # rn_curr=a[5]":"a[6]":"a[7]
-    # delete a
-    # use to abbreviate rn; probably not practical
 
     if (md_value ~ /^[0-9]*(\^[ACTGN]+[0-9]+)*$/){
         stats["reads_without_mismatches"]++
@@ -1399,10 +1411,6 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
             pair = "FALSE"
 
         }else if (rn_curr == rn_prev){
-
-            # abs_span = $9
-            # sub(/^-/,"",abs_span)
-            # print $3, fr_start, fr_start + abs_span, strand3, $1, $2 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
 
             print $3, fr_start-1, fr_end-1, gene_id, ".", strand3, $1, is_dup_prev, min($4,$8)-1, min($4,$8)+abs($9)-1, cnt_all["AA"]+cnt_previous["AA"]+0, cnt_all["AC"]+cnt_previous["AC"]+0, cnt_all["AG"]+cnt_previous["AG"]+0, cnt_all["AT"]+cnt_previous["AT"]+0, cnt_all["CA"]+cnt_previous["CA"]+0, cnt_all["CC"]+cnt_previous["CC"]+0, cnt_all["CG"]+cnt_previous["CG"]+0, cnt_all["CT"]+cnt_previous["CT"]+0, cnt_all["GA"]+cnt_previous["GA"]+0, cnt_all["GC"]+cnt_previous["GC"]+0, cnt_all["GG"]+cnt_previous["GG"]+0, cnt_all["GT"]+cnt_previous["GT"]+0, cnt_all["TA"]+cnt_previous["TA"]+0, cnt_all["TC"]+cnt_previous["TC"]+0, cnt_all["TG"]+cnt_previous["TG"]+0, cnt_all["TT"]+cnt_previous["TT"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
 
@@ -1453,11 +1461,6 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
 
         }else if (rn_curr == rn_prev){
 
-            # abs_span = $9
-            # sub(/^-/,"",abs_span)
-            # print $3, fr_start, fr_start + abs_span, strand3, $1, gene_id > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
-            # adding "real" coordinates from BAM to compare with the initially used system
-
             print $3, fr_start-1, fr_end-1, gene_id, ".", strand3, $1, is_dup_prev, min($4,$8)-1, min($4,$8)+abs($9)-1, cnt_all["AA"]+cnt_previous["AA"]+0, cnt_all["AC"]+cnt_previous["AC"]+0, cnt_all["AG"]+cnt_previous["AG"]+0, cnt_all["AT"]+cnt_previous["AT"]+0, cnt_all["CA"]+cnt_previous["CA"]+0, cnt_all["CC"]+cnt_previous["CC"]+0, cnt_all["CG"]+cnt_previous["CG"]+0, cnt_all["CT"]+cnt_previous["CT"]+0, cnt_all["GA"]+cnt_previous["GA"]+0, cnt_all["GC"]+cnt_previous["GC"]+0, cnt_all["GG"]+cnt_previous["GG"]+0, cnt_all["GT"]+cnt_previous["GT"]+0, cnt_all["TA"]+cnt_previous["TA"]+0, cnt_all["TC"]+cnt_previous["TC"]+0, cnt_all["TG"]+cnt_previous["TG"]+0, cnt_all["TT"]+cnt_previous["TT"]+0 > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer.bed"
 
             print gene_id, $1, cnt_overlap["AA"]+0, cnt_overlap["AC"]+0, cnt_overlap["AG"]+0, cnt_overlap["AT"]+0, cnt_overlap["CA"]+0, cnt_overlap["CC"]+0, cnt_overlap["CG"]+0, cnt_overlap["CT"]+0, cnt_overlap["GA"]+0, cnt_overlap["GC"]+0, cnt_overlap["GG"]+0, cnt_overlap["GT"]+0, cnt_overlap["TA"]+0, cnt_overlap["TC"]+0, cnt_overlap["TG"]+0, cnt_overlap["TT"]+0, "o", is_dup_prev > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer_counts.txt"
@@ -1467,12 +1470,13 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
             pair = "TRUE"
         }
     }
+    
     ################
+    
     if (os >= 1){
-
         stats["pairs_with_overlaps"]++
-
     }
+
     rn_prev = rn_curr
     is_dup_prev = is_dup_curr
     gene_id_previous = gene_id
@@ -1481,33 +1485,27 @@ function TCRA_producer_simple_rev(rn_curr_, rn_prev_, mmdel_read_current_, mmdel
     fr_end_previous = fr_end
     chr_previous = $3
     len_MDN_previous = len_MDN
-    # flag_previous = $2
     copy_array(cnt_all, cnt_previous)
     copy_array(mmdel_read, mmdel_read_previous)
+
+    print gene_id, rn_curr, is_dup_curr, length(Acnt), length(Ccnt), length(Gcnt), length(Tcnt) > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_cov.txt"
+
+    delete Tcnt
+    delete Acnt
+    delete Ccnt
+    delete Gcnt
 
 } # end of main routine
 
 END{
 
     if (pair == "FALSE"){
-
         print gene_id_previous, rn_prev, cnt_previous["AA"]+0, cnt_previous["AC"]+0, cnt_previous["AG"]+0, cnt_previous["AT"]+0, cnt_previous["CA"]+0, cnt_previous["CC"]+0, cnt_previous["CG"]+0, cnt_previous["CT"]+0, cnt_previous["GA"]+0, cnt_previous["GC"]+0, cnt_previous["GG"]+0, cnt_previous["GT"]+0, cnt_previous["TA"]+0, cnt_previous["TC"]+0, cnt_previous["TG"]+0, cnt_previous["TT"]+0, "a", is_dup_prev > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer_counts.txt"
     }
-
-# this needs fixing
-
-    timestamp=systime()
-
-    for (i in cov_tot){
-        print i, cov_tot[i] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_cov_tot_per_gene_" timestamp ".txt"
-    }
-    
-    delete cov_tot
 
     for (i in gene_cnt_clean){
         print i, gene_cnt_clean[i] > OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_gene_counts.txt"
     }
-
     delete gene_cnt_clean
 
     printf "Total reads: %s\nReads after deduplication: %s\nReads passing indel filter: %s\nReads passing quality filters: %s\nReads uniquely mapped to features: %s\nSkipped reads due to undetermined strandedness: %s\nReads without mismatches: %s\nReads with mismatches: %s\nReads passing alignment identity filter: %s\nNumber of read pairs with overlap of at least 1 base: %s\nCumulative sum of overlapping bases: %s\n", TOTAL_READS+0, stats["total_reads_after_duplicate_removal"]+0, stats["indel_filter_pass"]+0, stats["reads_passing_quality_filters"]+0, stats["reads_uniquely_mapped_to_features"]+0, stats["reads_with_undetermined_strandedness"]+0, stats["reads_without_mismatches"]+0, stats["reads_with_mismatches"]+0, stats["reads_with_mismatches_passing_identity_filter"]+0, stats["pairs_with_overlaps"]+0, to+0 >> OUTDIR_ARG "/" BAM_NAME "/" BAM_NAME "_RMLizer_stats.log"
